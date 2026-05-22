@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   const today = new Date();
   const todayStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
 
-  // 정확한 사주팔자 계산 (lunar-javascript)
+  // 정확한 사주팔자 계산
   const solar = Solar.fromYmd(y, m, d);
   const lunar = solar.getLunar();
   const bazi = lunar.getEightChar();
@@ -24,23 +24,43 @@ export default async function handler(req, res) {
   const todayBazi = todaySolar.getLunar().getEightChar();
 
   const pillars = {
-    year:  { gan: bazi.getYearGan(),  ji: bazi.getYearZhi()  },
-    month: { gan: bazi.getMonthGan(), ji: bazi.getMonthZhi() },
-    day:   { gan: bazi.getDayGan(),   ji: bazi.getDayZhi()   },
+    year:  { gan: bazi.getYearGan(),     ji: bazi.getYearZhi()     },
+    month: { gan: bazi.getMonthGan(),    ji: bazi.getMonthZhi()    },
+    day:   { gan: bazi.getDayGan(),      ji: bazi.getDayZhi()      },
     today: { gan: todayBazi.getDayGan(), ji: todayBazi.getDayZhi() }
   };
 
-  const prompt = `사주 전문가로서 ${name || '의뢰인'}(${gender}, ${y}년 ${m}월 ${d}일생, ${hour}) 의 ${todayStr} 오늘 운세를 알려주세요. 각 항목은 간결하게 한 문장으로 작성하세요.`;
+  // 오행 정보도 포함
+  const yearGanZhi  = pillars.year.gan  + pillars.year.ji;
+  const monthGanZhi = pillars.month.gan + pillars.month.ji;
+  const dayGanZhi   = pillars.day.gan   + pillars.day.ji;
+  const todayGanZhi = pillars.today.gan + pillars.today.ji;
+
+  const prompt = `당신은 한국 전통 명리학(사주팔자) 전문 상담사입니다.
+
+의뢰인 정보:
+- 이름: ${name || '의뢰인'}
+- 성별: ${gender}
+- 생년월일: ${y}년 ${m}월 ${d}일
+- 태어난 시간대: ${hour}
+- 사주팔자: 연주 ${yearGanZhi} / 월주 ${monthGanZhi} / 일주 ${dayGanZhi}
+- 오늘(${todayStr}) 일진: ${todayGanZhi}
+
+위 사주를 바탕으로 오늘의 운세를 분석해주세요.
+- 일주(${dayGanZhi})의 일간 특성과 오늘 일진(${todayGanZhi})과의 상생/상극 관계를 반영하세요.
+- 연주/월주와 오늘 일진의 오행 관계도 고려하세요.
+- 이 사람만의 고유한 특성이 드러나도록 구체적으로 작성하세요.
+- 각 항목은 간결하게 한 문장으로 작성하세요.`;
 
   const schema = {
     type: 'object',
     properties: {
-      summary:     { type: 'string', description: '오늘 종합 운세 2문장' },
+      summary:     { type: 'string', description: '이 사주 고유의 특성과 오늘 운세 2~3문장' },
       love:        { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
       money:       { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
       health:      { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
       career:      { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
-      advice:      { type: 'string', description: '오늘의 조언 한 문장' },
+      advice:      { type: 'string', description: '이 사주에 맞는 오늘의 구체적 조언' },
       luckyColor:  { type: 'string' },
       luckyNumber: { type: 'string' }
     },
@@ -57,7 +77,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.8,
+            temperature: 1.0,
             maxOutputTokens: 1500,
             responseMimeType: 'application/json',
             responseSchema: schema
