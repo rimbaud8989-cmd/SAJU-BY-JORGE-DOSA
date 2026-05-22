@@ -1,0 +1,7 @@
+{
+  "name": "saju-by-jorge-dosa",
+  "version": "1.0.0",
+  "dependencies": {
+    "lunar-javascript": "^1.7.7"
+  }
+}
