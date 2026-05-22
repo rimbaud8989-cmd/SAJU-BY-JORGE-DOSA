@@ -22,17 +22,10 @@ export default async function handler(req, res) {
 - 태어난 시간: ${hour}
 - 오늘 날짜: ${todayStr}
 
-다음 JSON 형식으로만 응답하세요 (마크다운 없이, 순수 JSON):
-{
-  "summary": "오늘 전반적인 운세 요약 (3~4문장, 따뜻하고 희망적인 어조)",
-  "love":   { "score": 1~5 정수, "text": "애정운 한 줄" },
-  "money":  { "score": 1~5 정수, "text": "금전운 한 줄" },
-  "health": { "score": 1~5 정수, "text": "건강운 한 줄" },
-  "career": { "score": 1~5 정수, "text": "직업/학업운 한 줄" },
-  "advice": "오늘 주의할 점 또는 행운을 부르는 조언 (2~3문장)",
-  "luckyColor": "오늘의 행운 색상",
-  "luckyNumber": "오늘의 행운 숫자"
-}`;
+아래 JSON 형식으로만 응답하세요. 마크다운, 설명, 코드블록 없이 JSON 객체만 출력하세요.
+점수는 1에서 5 사이의 숫자입니다.
+
+{"summary":"종합운세 3문장","love":{"score":3,"text":"애정운 한줄"},"money":{"score":3,"text":"금전운 한줄"},"health":{"score":3,"text":"건강운 한줄"},"career":{"score":3,"text":"직업운 한줄"},"advice":"조언 2문장","luckyColor":"색상","luckyNumber":"숫자"}`;
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -43,7 +36,11 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.9, maxOutputTokens: 1000 }
+          generationConfig: {
+            temperature: 0.9,
+            maxOutputTokens: 2000,
+            responseMimeType: 'application/json'
+          }
         })
       }
     );
@@ -55,8 +52,13 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    const parsed = JSON.parse(raw.replace(/```json|```/g, '').trim());
 
+    // JSON 블록 추출 시도
+    let jsonStr = raw.trim();
+    const match = jsonStr.match(/\{[\s\S]*\}/);
+    if (match) jsonStr = match[0];
+
+    const parsed = JSON.parse(jsonStr);
     return res.status(200).json(parsed);
   } catch (e) {
     return res.status(500).json({ error: e.message });
