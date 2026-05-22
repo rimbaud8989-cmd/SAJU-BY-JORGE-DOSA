@@ -32,8 +32,7 @@ export default async function handler(req, res) {
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
             temperature: 0.8,
-            maxOutputTokens: 3000,
-            responseMimeType: 'application/json'
+            maxOutputTokens: 3000
           }
         })
       }
@@ -46,21 +45,20 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const parts = data.candidates?.[0]?.content?.parts || [];
-
-    // 모든 파트 합치기
     let raw = parts.map(p => p.text || '').join('').trim();
 
-    // JSON 블록만 추출
+    console.log('Gemini raw response:', raw.slice(0, 300));
+
+    // 코드블록 제거
+    raw = raw.replace(/```json|```/g, '').trim();
+
+    // JSON 블록 추출
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('JSON 없음');
-    raw = match[0];
+    if (!match) {
+      return res.status(500).json({ error: '응답 파싱 실패. 원본: ' + raw.slice(0, 200) });
+    }
 
-    // 문자열 값 안의 줄바꿈/탭 제거
-    raw = raw.replace(/[\r\n\t]/g, ' ');
-
-    // 연속 공백 정리
-    raw = raw.replace(/\s+/g, ' ');
-
+    raw = match[0].replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ');
     const parsed = JSON.parse(raw);
     return res.status(200).json(parsed);
   } catch (e) {
