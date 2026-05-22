@@ -13,13 +13,16 @@ export default async function handler(req, res) {
   const todayStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
   const [y, m, d] = birth.split('-').map(Number);
 
-  const prompt = `당신은 한국 전통 명리학(사주팔자) 전문 상담사입니다.
+  const prompt = `사주 전문가로서 아래 의뢰인의 오늘 운세를 JSON으로 답하세요.
 
-의뢰인: ${name || '의뢰인'}, ${gender}, ${y}년 ${m}월 ${d}일생, 태어난 시간: ${hour}, 오늘: ${todayStr}
+의뢰인: ${name || '의뢰인'} / ${gender} / ${y}.${m}.${d}생 / ${hour} / 오늘: ${todayStr}
 
-반드시 아래 JSON 형식 그대로만 응답하세요. 줄바꿈 없이 한 줄로 출력하세요.
+규칙:
+- 반드시 JSON 한 줄만 출력 (설명 금지)
+- 각 텍스트는 20자 이내로 간결하게
+- score는 1~5 숫자
 
-{"summary":"운세요약","love":{"score":4,"text":"애정운"},"money":{"score":3,"text":"금전운"},"health":{"score":4,"text":"건강운"},"career":{"score":3,"text":"직업운"},"advice":"조언","luckyColor":"색상","luckyNumber":"7"}`;
+형식: {"summary":"20자이내요약","love":{"score":4,"text":"10자이내"},"money":{"score":3,"text":"10자이내"},"health":{"score":4,"text":"10자이내"},"career":{"score":3,"text":"10자이내"},"advice":"20자이내조언","luckyColor":"색","luckyNumber":"숫자"}`;
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -30,10 +33,7 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            temperature: 0.8,
-            maxOutputTokens: 3000
-          }
+          generationConfig: { temperature: 0.8, maxOutputTokens: 1000 }
         })
       }
     );
@@ -47,19 +47,13 @@ export default async function handler(req, res) {
     const parts = data.candidates?.[0]?.content?.parts || [];
     let raw = parts.map(p => p.text || '').join('').trim();
 
-    console.log('Gemini raw response:', raw.slice(0, 300));
+    // 코드블록 제거 후 줄바꿈 정리
+    raw = raw.replace(/```json|```/g, '').replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // 코드블록 제거
-    raw = raw.replace(/```json|```/g, '').trim();
+    const match = raw.match(/\{.*\}/);
+    if (!match) return res.status(500).json({ error: '응답 파싱 실패: ' + raw.slice(0, 200) });
 
-    // JSON 블록 추출
-    const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) {
-      return res.status(500).json({ error: '응답 파싱 실패. 원본: ' + raw.slice(0, 200) });
-    }
-
-    raw = match[0].replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ');
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(match[0]);
     return res.status(200).json(parsed);
   } catch (e) {
     return res.status(500).json({ error: e.message });
