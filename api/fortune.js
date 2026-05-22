@@ -1,3 +1,5 @@
+import { Solar } from 'lunar-javascript';
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -9,9 +11,24 @@ export default async function handler(req, res) {
   const { name, gender, birth, hour } = req.body;
   if (!birth) return res.status(400).json({ error: '생년월일이 필요합니다.' });
 
+  const [y, m, d] = birth.split('-').map(Number);
   const today = new Date();
   const todayStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
-  const [y, m, d] = birth.split('-').map(Number);
+
+  // 정확한 사주팔자 계산 (lunar-javascript)
+  const solar = Solar.fromYmd(y, m, d);
+  const lunar = solar.getLunar();
+  const bazi = lunar.getEightChar();
+
+  const todaySolar = Solar.fromYmd(today.getFullYear(), today.getMonth()+1, today.getDate());
+  const todayBazi = todaySolar.getLunar().getEightChar();
+
+  const pillars = {
+    year:  { gan: bazi.getYearGan(),  ji: bazi.getYearZhi()  },
+    month: { gan: bazi.getMonthGan(), ji: bazi.getMonthZhi() },
+    day:   { gan: bazi.getDayGan(),   ji: bazi.getDayZhi()   },
+    today: { gan: todayBazi.getDayGan(), ji: todayBazi.getDayZhi() }
+  };
 
   const prompt = `사주 전문가로서 ${name || '의뢰인'}(${gender}, ${y}년 ${m}월 ${d}일생, ${hour}) 의 ${todayStr} 오늘 운세를 알려주세요. 각 항목은 간결하게 한 문장으로 작성하세요.`;
 
@@ -24,8 +41,8 @@ export default async function handler(req, res) {
       health:      { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
       career:      { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
       advice:      { type: 'string', description: '오늘의 조언 한 문장' },
-      luckyColor:  { type: 'string', description: '행운의 색상' },
-      luckyNumber: { type: 'string', description: '행운의 숫자' }
+      luckyColor:  { type: 'string' },
+      luckyNumber: { type: 'string' }
     },
     required: ['summary','love','money','health','career','advice','luckyColor','luckyNumber']
   };
@@ -57,8 +74,9 @@ export default async function handler(req, res) {
     const data = await response.json();
     const parts = data.candidates?.[0]?.content?.parts || [];
     const raw = parts.map(p => p.text || '').join('').trim();
-    const parsed = JSON.parse(raw);
-    return res.status(200).json(parsed);
+    const fortune = JSON.parse(raw);
+
+    return res.status(200).json({ pillars, fortune });
   } catch (e) {
     return res.status(500).json({ error: e.message });
   }
