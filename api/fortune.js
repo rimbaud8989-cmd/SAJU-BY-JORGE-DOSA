@@ -40,8 +40,7 @@ export default async function handler(req, res) {
             temperature: 0.9,
             maxOutputTokens: 3000,
             responseMimeType: 'application/json'
-          },
-          thinkingConfig: { thinkingBudget: 0 }
+          }
         })
       }
     );
@@ -52,14 +51,11 @@ export default async function handler(req, res) {
     }
 
     const data = await response.json();
-
-    // 모든 파트의 텍스트를 합치기
     const parts = data.candidates?.[0]?.content?.parts || [];
     const raw = parts.map(p => p.text || '').join('').trim();
 
-    // JSON 블록 추출
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('JSON을 찾을 수 없습니다: ' + raw.slice(0, 100));
+    if (!match) throw new Error('JSON을 찾을 수 없습니다.');
 
     const parsed = JSON.parse(match[0]);
     return res.status(200).json(parsed);
