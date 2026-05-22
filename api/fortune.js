@@ -15,17 +15,11 @@ export default async function handler(req, res) {
 
   const prompt = `당신은 한국 전통 명리학(사주팔자) 전문 상담사입니다.
 
-의뢰인 정보:
-- 이름: ${name || '의뢰인'}
-- 성별: ${gender}
-- 생년월일: ${y}년 ${m}월 ${d}일
-- 태어난 시간: ${hour}
-- 오늘 날짜: ${todayStr}
+의뢰인: ${name || '의뢰인'}, ${gender}, ${y}년 ${m}월 ${d}일생, 태어난 시간: ${hour}, 오늘: ${todayStr}
 
-아래 JSON 형식으로만 응답하세요. 마크다운, 설명, 코드블록 없이 JSON 객체만 출력하세요.
-점수는 1에서 5 사이의 숫자입니다.
+반드시 아래 JSON 형식 그대로만 응답하세요. 줄바꿈 없이 한 줄로 출력하세요.
 
-{"summary":"종합운세 3문장","love":{"score":3,"text":"애정운 한줄"},"money":{"score":3,"text":"금전운 한줄"},"health":{"score":3,"text":"건강운 한줄"},"career":{"score":3,"text":"직업운 한줄"},"advice":"조언 2문장","luckyColor":"색상","luckyNumber":"숫자"}`;
+{"summary":"운세요약","love":{"score":4,"text":"애정운"},"money":{"score":3,"text":"금전운"},"health":{"score":4,"text":"건강운"},"career":{"score":3,"text":"직업운"},"advice":"조언","luckyColor":"색상","luckyNumber":"7"}`;
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -37,7 +31,7 @@ export default async function handler(req, res) {
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
           generationConfig: {
-            temperature: 0.9,
+            temperature: 0.8,
             maxOutputTokens: 3000,
             responseMimeType: 'application/json'
           }
@@ -52,12 +46,22 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const parts = data.candidates?.[0]?.content?.parts || [];
-    const raw = parts.map(p => p.text || '').join('').trim();
 
+    // 모든 파트 합치기
+    let raw = parts.map(p => p.text || '').join('').trim();
+
+    // JSON 블록만 추출
     const match = raw.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('JSON을 찾을 수 없습니다.');
+    if (!match) throw new Error('JSON 없음');
+    raw = match[0];
 
-    const parsed = JSON.parse(match[0]);
+    // 문자열 값 안의 줄바꿈/탭 제거
+    raw = raw.replace(/[\r\n\t]/g, ' ');
+
+    // 연속 공백 정리
+    raw = raw.replace(/\s+/g, ' ');
+
+    const parsed = JSON.parse(raw);
     return res.status(200).json(parsed);
   } catch (e) {
     return res.status(500).json({ error: e.message });
