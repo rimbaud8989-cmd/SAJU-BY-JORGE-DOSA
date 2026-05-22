@@ -13,16 +13,22 @@ export default async function handler(req, res) {
   const todayStr = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일`;
   const [y, m, d] = birth.split('-').map(Number);
 
-  const prompt = `사주 전문가로서 아래 의뢰인의 오늘 운세를 JSON으로 답하세요.
+  const prompt = `사주 전문가로서 ${name || '의뢰인'}(${gender}, ${y}년 ${m}월 ${d}일생, ${hour}) 의 ${todayStr} 오늘 운세를 알려주세요. 각 항목은 간결하게 한 문장으로 작성하세요.`;
 
-의뢰인: ${name || '의뢰인'} / ${gender} / ${y}.${m}.${d}생 / ${hour} / 오늘: ${todayStr}
-
-규칙:
-- 반드시 JSON 한 줄만 출력 (설명 금지)
-- 각 텍스트는 20자 이내로 간결하게
-- score는 1~5 숫자
-
-형식: {"summary":"20자이내요약","love":{"score":4,"text":"10자이내"},"money":{"score":3,"text":"10자이내"},"health":{"score":4,"text":"10자이내"},"career":{"score":3,"text":"10자이내"},"advice":"20자이내조언","luckyColor":"색","luckyNumber":"숫자"}`;
+  const schema = {
+    type: 'object',
+    properties: {
+      summary:     { type: 'string', description: '오늘 종합 운세 2문장' },
+      love:        { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
+      money:       { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
+      health:      { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
+      career:      { type: 'object', properties: { score: { type: 'integer' }, text: { type: 'string' } }, required: ['score','text'] },
+      advice:      { type: 'string', description: '오늘의 조언 한 문장' },
+      luckyColor:  { type: 'string', description: '행운의 색상' },
+      luckyNumber: { type: 'string', description: '행운의 숫자' }
+    },
+    required: ['summary','love','money','health','career','advice','luckyColor','luckyNumber']
+  };
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -33,7 +39,12 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.8, maxOutputTokens: 1000 }
+          generationConfig: {
+            temperature: 0.8,
+            maxOutputTokens: 1500,
+            responseMimeType: 'application/json',
+            responseSchema: schema
+          }
         })
       }
     );
@@ -45,15 +56,8 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     const parts = data.candidates?.[0]?.content?.parts || [];
-    let raw = parts.map(p => p.text || '').join('').trim();
-
-    // 코드블록 제거 후 줄바꿈 정리
-    raw = raw.replace(/```json|```/g, '').replace(/[\r\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    const match = raw.match(/\{.*\}/);
-    if (!match) return res.status(500).json({ error: '응답 파싱 실패: ' + raw.slice(0, 200) });
-
-    const parsed = JSON.parse(match[0]);
+    const raw = parts.map(p => p.text || '').join('').trim();
+    const parsed = JSON.parse(raw);
     return res.status(200).json(parsed);
   } catch (e) {
     return res.status(500).json({ error: e.message });
