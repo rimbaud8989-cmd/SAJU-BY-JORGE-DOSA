@@ -324,31 +324,19 @@
 
   <script>
     const TODAY = new Date();
-    const GAN = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
-    const JI  = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
-
-    function gz(n) { return { g: GAN[((n-4)%10+10)%10], j: JI[((n-4)%12+12)%12] }; }
 
     function todayStr() {
       const d = ['일','월','화','수','목','금','토'];
       return `${TODAY.getFullYear()}년 ${TODAY.getMonth()+1}월 ${TODAY.getDate()}일 (${d[TODAY.getDay()]}요일)`;
     }
 
-    function renderPillars(birth) {
-      const [y, m, d] = birth.split('-').map(Number);
-      const yGZ = gz(y);
-      const mGZ = gz(y * 12 + m);
-      const base = Math.floor((new Date(y,m-1,d) - new Date(1900,0,1)) / 86400000);
-      const dGZ = gz(base + 1900);
-      const tGZ = gz(Math.floor((TODAY - new Date(1900,0,1)) / 86400000) + 1900);
-
+    function renderPillars(pillars) {
       const ps = [
-        { label: '연주 (년)', ...yGZ },
-        { label: '월주 (월)', ...mGZ },
-        { label: '일주 (일)', ...dGZ },
-        { label: '오늘 일진', ...tGZ },
+        { label: '연주 (년)', g: pillars.year.gan,  j: pillars.year.ji  },
+        { label: '월주 (월)', g: pillars.month.gan, j: pillars.month.ji },
+        { label: '일주 (일)', g: pillars.day.gan,   j: pillars.day.ji   },
+        { label: '오늘 일진', g: pillars.today.gan, j: pillars.today.ji },
       ];
-
       document.getElementById('pillars').innerHTML = ps.map(p => `
         <div class="pillar">
           <div class="pillar-label">${p.label}</div>
@@ -377,7 +365,7 @@
       document.getElementById('btn-run').disabled = true;
       document.getElementById('result').style.display = 'block';
       document.getElementById('today-label').textContent = `오늘 ${todayStr()}`;
-      renderPillars(birth);
+      // pillars will be rendered after API response
       document.getElementById('loading').style.display = 'block';
       document.getElementById('fortune').innerHTML = '';
 
@@ -393,6 +381,9 @@
 
         document.getElementById('loading').style.display = 'none';
 
+        const { pillars, fortune } = parsed;
+        renderPillars(pillars);
+
         const cats = [
           { key:'love',   label:'애정운' },
           { key:'money',  label:'금전운' },
@@ -406,14 +397,14 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
               오늘의 종합 운세
             </div>
-            <div class="fortune-body">${parsed.summary}</div>
+            <div class="fortune-body">${fortune.summary}</div>
           </div>
           <div class="fortune-grid">
             ${cats.map(c => `
             <div class="fortune-mini">
               <div class="mini-label">${c.label}</div>
-              <div class="stars">${stars(parsed[c.key]?.score || 3)}</div>
-              <div class="mini-text">${parsed[c.key]?.text || ''}</div>
+              <div class="stars">${stars(fortune[c.key]?.score || 3)}</div>
+              <div class="mini-text">${fortune[c.key]?.text || ''}</div>
             </div>`).join('')}
           </div>
           <div class="fortune-card">
@@ -421,16 +412,16 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               오늘의 조언
             </div>
-            <div class="fortune-body">${parsed.advice}</div>
+            <div class="fortune-body">${fortune.advice}</div>
           </div>
           <div class="fortune-grid">
             <div class="fortune-mini">
               <div class="mini-label">행운의 색상</div>
-              <div class="lucky-val">${parsed.luckyColor}</div>
+              <div class="lucky-val">${fortune.luckyColor}</div>
             </div>
             <div class="fortune-mini">
               <div class="mini-label">행운의 숫자</div>
-              <div class="lucky-val">${parsed.luckyNumber}</div>
+              <div class="lucky-val">${fortune.luckyNumber}</div>
             </div>
           </div>
         `;
